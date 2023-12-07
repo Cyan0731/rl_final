@@ -1,0 +1,30 @@
+guitar
+piano
+violin
+flute
+trumpet
+drums
+saxophone
+cello
+clarinet
+harp
+trombone
+banjo
+ukulele
+french horn
+accordion
+viola
+double bass
+oboe
+mandolin
+xylophone
+electric bass
+piccolo
+bassoon
+bagpipes
+didgeridoo
+tambourine
+harmonica
+recorder
+marimba
+theremin

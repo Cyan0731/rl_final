@@ -1,5 +1,5 @@
 import ml_collections
-
+import random
 
 def get_config():
     config = ml_collections.ConfigDict()
@@ -8,12 +8,13 @@ def get_config():
     # run name for wandb logging and checkpoint saving -- if not provided, will be auto-generated based on the datetime.
     config.run_name = ""
     # random seed for reproducibility.
-    config.seed = 42
+    # config.seed = 42
+    config.seed = random.randint(0, 100)
     # top-level logging directory for checkpoint saving.
     config.logdir = "logs"
     # number of epochs to train for. each epoch is one round of sampling from the model followed by training on those
     # samples.
-    config.num_epochs = 500
+    config.num_epochs = 2000
     # number of epochs between saving model checkpoints.
     config.save_freq = 20
     # number of checkpoints to keep before overwriting old ones.
@@ -42,17 +43,18 @@ def get_config():
     ###### Sampling ######
     config.sample = sample = ml_collections.ConfigDict()
     # number of sampler inference steps.
-    sample.num_steps = 15
+    sample.num_steps = 5
     # eta parameter for the DDIM sampler. this controls the amount of noise injected into the sampling process, with 0.0
     # being fully deterministic and 1.0 being equivalent to the DDPM sampler.
-    sample.eta = 1.0
+    sample.eta = 0.2
     # classifier-free guidance weight. 1.0 is no guidance.
-    sample.guidance_scale = 5.0
+    # sample.guidance_scale = 5.0
+    sample.guidance_scale = 3.5
     # batch size (per GPU!) to use for sampling.
     sample.batch_size = 1
     # number of batches to sample per epoch. the total number of samples per epoch is `num_batches_per_epoch *
     # batch_size * num_gpus`.
-    sample.num_batches_per_epoch = 2
+    sample.num_batches_per_epoch = 6
 
     ###### Training ######
     config.train = train = ml_collections.ConfigDict()
@@ -72,7 +74,7 @@ def get_config():
     train.adam_epsilon = 1e-8
     # number of gradient accumulation steps. the effective batch size is `batch_size * num_gpus *
     # gradient_accumulation_steps`.
-    train.gradient_accumulation_steps = 2
+    train.gradient_accumulation_steps = 6
     # maximum gradient norm for gradient clipping.
     train.max_grad_norm = 1.0
     # number of inner epochs per outer epoch. each inner epoch is one iteration through the data collected during one

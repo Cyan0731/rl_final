@@ -104,25 +104,6 @@ def main(_):
     set_seed(config.seed, device_specific=True)
 
     # load scheduler, tokenizer and models.
-    # pipeline = StableDiffusionPipeline.from_pretrained(
-    #     config.pretrained.model, revision=config.pretrained.revision
-    # )
-    # # freeze parameters of models to save more memory
-    # pipeline.vae.requires_grad_(False)
-    # pipeline.text_encoder.requires_grad_(False)
-    # pipeline.unet.requires_grad_(not config.use_lora)
-    # # disable safety checker
-    # pipeline.safety_checker = None
-    # # make the progress bar nicer
-    # pipeline.set_progress_bar_config(
-    #     position=1,
-    #     disable=not accelerator.is_local_main_process,
-    #     leave=False,
-    #     desc="Timestep",
-    #     dynamic_ncols=True,
-    # )
-    # # switch to DDIM scheduler
-    # pipeline.scheduler = DDIMScheduler.from_config(pipeline.scheduler.config)
     pretrained_model_name_or_path = "/data/fundwotsai/RL_final/ddpo-pytorch/audioldm-m-full"
     #change stable diffusion to audioldm
     tokenizer = RobertaTokenizerFast.from_pretrained(pretrained_model_name_or_path, subfolder="tokenizer")
@@ -146,29 +127,15 @@ def main(_):
         tokenizer=tokenizer
     ).to(accelerator.device)
     # test if weight is successfully loaded
-    # waveform = audioldmpipeline("a High quality music with delighted guitar",negative_prompt="low quality", num_inference_steps=50, num_waveforms_per_prompt=1, audio_length_in_s=20).audios
-    # print(waveform)
-    # print(waveform.shape)
-    # # Convert the numpy ndarray to a PyTorch tensor
-    # waveform_tensor = torch.tensor(waveform)
-    # print(type(waveform_tensor))
-    # # Save the tensor as a WAV file
-    # import torchaudio
-    # torchaudio.save(f"a High quality music with delighted guitar.wav", waveform_tensor, 16000)
     audioldmpipeline = audioldmpipeline.to("cuda")
     audioldmpipeline.vae.requires_grad_(False)
     audioldmpipeline.text_encoder.requires_grad_(False)
+    audioldmpipeline.vocoder.requires_grad_(False)
     audioldmpipeline.unet.requires_grad_(not config.use_lora)
+    audioldmpipeline.text_encoder.text_projection.requires_grad_(not config.use_lora)
     # disable safety checker
     audioldmpipeline.safety_checker = None
-    # make the progress bar nicer
-    audioldmpipeline.set_progress_bar_config(
-        position=1,
-        disable=not accelerator.is_local_main_process,
-        leave=False,
-        desc="Timestep",
-        dynamic_ncols=True,
-    )
+
     # switch to DDIM scheduler
     # audioldmpipeline.scheduler = DDIMScheduler.from_config(audioldmpipeline.scheduler.config)
    
@@ -409,6 +376,7 @@ def main(_):
             # sample_neg_prompt_embeds = sample_neg_prompt_embeds.squeeze(1)
             # train_neg_prompt_embeds = train_neg_prompt_embeds.squeeze(1)
             # sample
+            
             with autocast():
                 audio, latents, log_probs, prompt_embeds = pipeline_with_logprob(
                     audioldmpipeline,
@@ -466,7 +434,6 @@ def main(_):
             sample["rewards"] = torch.as_tensor(rewards, device=accelerator.device)
 
         # collate samples into dict where each entry has shape (num_batches_per_epoch * sample.batch_size, ...)
-        # print(samples)
         samples = {k: torch.cat([s[k] for s in samples]) for k in samples[0].keys()}
 
         # gather rewards across processes
@@ -484,14 +451,14 @@ def main(_):
         )
 
         # per-prompt mean/std tracking
-        # if config.per_prompt_stat_tracking:
-        #     # gather the prompts across processes
-        #     prompt_ids = accelerator.gather(samples["prompt_ids"]).cpu().numpy()
-        #     prompts = audioldmpipeline.tokenizer.batch_decode(
-        #         prompt_ids, skip_special_tokens=True
-        #     )
-        #     advantages = stat_tracker.update(prompts, rewards)
-        # else:
+        if config.per_prompt_stat_tracking:
+            # gather the prompts across processes
+            prompt_ids = accelerator.gather(samples["prompt_ids"]).cpu().numpy()
+            prompts = audioldmpipeline.tokenizer.batch_decode(
+                prompt_ids, skip_special_tokens=True
+            )
+            advantages = stat_tracker.update(prompts, rewards)
+        else:
         advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
 
         # ungather advantages; we only need to keep the entries corresponding to the samples on this process
@@ -548,8 +515,9 @@ def main(_):
                 list(enumerate(samples_batched)),
                 desc=f"Epoch {epoch}.{inner_epoch}: training",
                 position=0,
-                disable=not accelerator.is_local_main_process,
-            ):
+                disable=not accelerator.is_local_main_process,):
+
+                # print(train_neg_prompt_embeds.shape, sample["prompt_embeds"].shape)
                 if config.train.cfg:
                     # concat negative prompts to sample prompts to avoid two forward passes
                     embeds = torch.cat(

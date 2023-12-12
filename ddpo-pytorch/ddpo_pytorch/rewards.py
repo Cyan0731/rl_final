@@ -264,11 +264,19 @@ def emo_score():
             #     reward.append(1)
             # else:
             #     reward.append(0)
-            
+
             # by value
-            emo_value = predict(audio) # [T] -> str
+            # _, emo_value = predict(audio) # [T] -> str
+            # idx = int(prompt_emo_dict[prompt.split(" ")[0]][1]) - 1
+            # reward.append(emo_value[idx])
+
+            # by value diff
+            emo_label, emo_value = predict(audio) # [T] -> str
+            gt_idx = int(emo_label[1]) - 1
             idx = int(prompt_emo_dict[prompt.split(" ")[0]][1]) - 1
-            reward.append(emo_value[idx])
+            
+            emo_score = emo_value[idx] - emo_value[gt_idx]
+            reward.append(emo_score)
         
         return np.array(reward)[None],{}
     return _fn

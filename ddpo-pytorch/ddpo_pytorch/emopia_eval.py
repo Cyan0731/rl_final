@@ -12,7 +12,7 @@ folder_name = "step19_sec10_gen"
 
 
 
-input_dir = f"/home/cyan/rl_final/samples/{folder_name}"
+input_dir = f"../samples/{folder_name}"
 input_files = glob(os.path.join(input_dir, '*.wav'))
 input_files.sort()
 
@@ -30,4 +30,4 @@ for input_file in input_files:
         count += 1
 
 print(count / len(input_files))
-df.to_csv(f"/home/cyan/rl_final/samples/{folder_name}/emo_benchmark.csv", index=False)
+df.to_csv(f"../samples/{folder_name}/emo_benchmark.csv", index=False)

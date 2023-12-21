@@ -28,7 +28,7 @@ def get_config():
     # resume training from a checkpoint. either an exact checkpoint directory (e.g. checkpoint_50), or a directory
     # containing checkpoints, in which case the latest one will be used. `config.use_lora` must be set to the same value
     # as the run that generated the saved checkpoint.
-    config.resume_from = "/home/cyan/rl_final/ddpo-pytorch/logs/4emo_piano_steps19_clap/checkpoints/checkpoint_7"
+    config.resume_from = ""
     # whether or not to use LoRA. LoRA reduces memory usage significantly by injecting small weight matrices into the
     # attention layers of the UNet. with LoRA, fp16, and a batch size of 1, finetuning Stable Diffusion should take
     # about 10GB of GPU memory. beware that if LoRA is disabled, training will take a lot of memory and saved checkpoint
@@ -46,6 +46,7 @@ def get_config():
     config.sample = sample = ml_collections.ConfigDict()
     # number of sampler inference steps.
     sample.num_steps = 19
+    sample.duration = 10
     # eta parameter for the DDIM sampler. this controls the amount of noise injected into the sampling process, with 0.0
     # being fully deterministic and 1.0 being equivalent to the DDPM sampler.
     sample.eta = 1

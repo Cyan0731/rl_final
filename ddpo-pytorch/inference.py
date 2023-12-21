@@ -4,8 +4,8 @@ import os
 
 
 # model_path = '/home/cyan/rl_final/ddpo-pytorch/logs/4emo_piano_steps19_emopia/checkpoints/checkpoint_4'
-model_path = "/home/cyan/rl_final/ddpo-pytorch/audioldm2_ckpt/4emo_steps38_highest/checkpoint_14"
-output_dir = '/home/cyan/rl_final/samples/step38_sec10_emo_gen_highest/'
+model_path = "audioldm2_ckpt/4emo_steps38_highest/checkpoint_14"
+output_dir = '../samples/step38_sec10_emo_gen_highest/'
 num_inference_steps = 38
 audio_length_in_s = 5.
 
@@ -13,7 +13,7 @@ audio_length_in_s = 5.
 if not os.path.exists(output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
-pretrained_model_name_or_path = "/home/cyan/rl_final/ddpo-pytorch/audioldm2-music"
+pretrained_model_name_or_path = "audioldm2-music"
 
 audioldmpipeline= AudioLDM2Pipeline.from_pretrained(
         pretrained_model_name_or_path,

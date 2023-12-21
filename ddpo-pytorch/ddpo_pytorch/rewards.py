@@ -195,7 +195,7 @@ def llava_bertscore():
 def clap_score():
 
     model = laion_clap.CLAP_Module(enable_fusion=False, amodel= 'HTSAT-base')
-    model.load_ckpt('/home/cyan/rl_final/ddpo-pytorch/CLAP/ckpt/music_audioset_epoch_15_esc_90.14.pt')
+    model.load_ckpt('CLAP/ckpt/music_audioset_epoch_15_esc_90.14.pt')
     model.eval()
     model.to("cpu")
     def _fn(audios, prompts, metadata):
@@ -218,7 +218,7 @@ def clap_score():
         similarity = np.dot(audio_norm, text_norm.T)
         # print(similarity)
         if float(similarity) > 0.4:
-            torchaudio.save(f"/home/cyan/rl_final/ddpo-pytorch/examples/clap/{prompts}_{float(similarity):.2f}.wav", waveform_tensor, 16000)
+            torchaudio.save(f"examples/clap/{prompts}_{float(similarity):.2f}.wav", waveform_tensor, 16000)
         # print(waveform_tensor)
         return np.array(similarity),{}
     return _fn
@@ -244,7 +244,7 @@ def emo_score():
     from .emo_scorer import predict
     
     prompt_emo_dict = {}
-    with open("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/assets/small_categories.txt", "r") as f:
+    with open("ddpo_pytorch/assets/small_categories.txt", "r") as f:
         for line in f.readlines():
             key, value = line.split(", ")
             prompt_emo_dict[key] = value
@@ -287,7 +287,7 @@ def emo_score():
 
             if emo_score > -0.1:
                 waveform_tensor = torch.tensor(audios)
-                torchaudio.save(f"/home/cyan/rl_final/ddpo-pytorch/examples/emopia/{prompts}_{emo_score:.2f}.wav", waveform_tensor, 16000)
+                torchaudio.save(f"examples/emopia/{prompts}_{emo_score:.2f}.wav", waveform_tensor, 16000)
 
         return np.array(reward)[None],{}
     return _fn

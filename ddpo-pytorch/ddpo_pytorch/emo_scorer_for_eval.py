@@ -14,8 +14,8 @@ from audio_cls.src.model.net import ShortChunkCNN_Res
 
 def predict(audio):
     device = "cpu"
-    config_path = Path("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/emo_weight/ar_va/hparams.yaml")
-    checkpoint_path = Path("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/emo_weight/ar_va/best.ckpt")
+    config_path = Path("ddpo_pytorch/emo_weight/ar_va/hparams.yaml")
+    checkpoint_path = Path("ddpo_pytorch/emo_weight/ar_va/best.ckpt")
     config = OmegaConf.load(config_path)
     label_list = list(config.task.labels)
 

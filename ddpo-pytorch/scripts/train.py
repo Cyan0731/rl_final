@@ -101,41 +101,9 @@ def main(_):
         )
     logger.info(f"\n{config}")
 
-    # set seed (device_specific is very important to get different prompts on different devices)
-    # set_seed(config.seed, device_specific=True)
-    pretrained_model_name_or_path = "/home/cyan/rl_final/ddpo-pytorch/audioldm2-music"
-    # #change stable diffusion to audioldm
-    # tokenizer = RobertaTokenizerFast.from_pretrained(pretrained_model_name_or_path, subfolder="tokenizer")
-    # noise_scheduler = DDIMScheduler.from_pretrained(pretrained_model_name_or_path, subfolder="scheduler")
-    # text_encoder = ClapTextModelWithProjection.from_pretrained(
-    #     pretrained_model_name_or_path, subfolder="text_encoder", revision=False
-    # )
-    # vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path, subfolder="vae", revision=False)
-    # unet = UNet2DConditionModel.from_pretrained(
-    #     pretrained_model_name_or_path, subfolder="unet", revision=False
-    # )
-    # vocoder = SpeechT5HifiGan.from_pretrained(pretrained_model_name_or_path, subfolder="vocoder", revision=False
-    # )
 
-    # audioldmpipeline=AudioLDMPipeline(
-    #     text_encoder=text_encoder,
-    #     vae=vae,
-    #     unet=unet,
-    #     vocoder=vocoder,
-    #     scheduler=noise_scheduler,
-    #     tokenizer=tokenizer
-    # ).to(accelerator.device)
-    # test if weight is successfully loaded
-    # waveform = audioldmpipeline("a High quality music with delighted guitar",negative_prompt="low quality", num_inference_steps=50, num_waveforms_per_prompt=1, audio_length_in_s=20).audios
-    # print(waveform)
-    # print(waveform.shape)
-    # # Convert the numpy ndarray to a PyTorch tensor
-    # waveform_tensor = torch.tensor(waveform)
-    # print(type(waveform_tensor))
-    # # Save the tensor as a WAV file
-    # import torchaudio
-    # torchaudio.save(f"a High quality music with delighted guitar.wav", waveform_tensor, 16000)
-    
+
+    pretrained_model_name_or_path = "audioldm2-music"
     #Try audioldm2 
     audioldmpipeline= AudioLDM2Pipeline.from_pretrained(
         pretrained_model_name_or_path,
@@ -149,18 +117,6 @@ def main(_):
     audioldmpipeline.unet.requires_grad_(not config.use_lora)
     print(audioldmpipeline.unet.config)
     audioldmpipeline.text_encoder.text_projection.requires_grad_(not config.use_lora)
-    # # disable safety checker
-    # audioldmpipeline.safety_checker = None
-    # # make the progress bar nicer
-    # audioldmpipeline.set_progress_bar_config(
-    #     position=1,
-    #     disable=not accelerator.is_local_main_process,
-    #     leave=False,
-    #     desc="Timestep",
-    #     dynamic_ncols=True,
-    # )
-    # switch to DDIM scheduler
-    # audioldmpipeline.scheduler = DDIMScheduler.from_config(audioldmpipeline.scheduler.config)
    
 
     # For mixed precision training we cast all non-trainable weigths (vae, non-lora text_encoder and non-lora unet) to half-precision
@@ -380,40 +336,21 @@ def main(_):
             disable=not accelerator.is_local_main_process,
             position=0,
         ):
-            # generate prompts
-            # prompts, prompt_metadata = zip(
-            #     *[
-            #         prompt_fn(**config.prompt_fn_kwargs)
-            #         for _ in range(config.sample.batch_size)
-            #     ]
-            # )
+            
             prompt, prompt_metadata = zip(
                 *[
-                    nouns_activities("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/assets/tiny_emos.txt",
-                                     "/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/assets/tiny_inst.txt")
+                    nouns_activities("ddpo_pytorch/assets/tiny_emos.txt",
+                                     "ddpo_pytorch/assets/tiny_inst.txt")
                     for _ in range(config.sample.batch_size)
                 ]
             )
             
-            # print(prompt[0])
-            # print("prompts",prompts)
-            # print("prompt_metadata",prompt_metadata)
-            # encode prompts
-            # prompt_ids = audioldmpipeline.tokenizer(
-            #     prompts,
-            #     return_tensors="pt",
-            #     padding="max_length",
-            #     truncation=True,
-            #     max_length=audioldmpipeline.tokenizer.model_max_length,
-            # ).input_ids.to(accelerator.device)
-            # prompt_embeds = audioldmpipeline.text_encoder(prompt_ids)[0]
-            # sample_neg_prompt_embeds = sample_neg_prompt_embeds.squeeze(1)
-            # train_neg_prompt_embeds = train_neg_prompt_embeds.squeeze(1)
             # sample
             with autocast():
                 audio, latents, log_probs, prompt_embeds, train_neg_prompt_embeds, attention_mask, generated_prompt_embeds = pipeline_with_logprob(
                     audioldmpipeline,
                     prompt=prompt[0],
+                    audio_length_in_s=config.sample.duration,
                     negative_prompt="Low quality, mutiple sound source",
                     num_inference_steps=config.sample.num_steps,
                     guidance_scale=config.sample.guidance_scale,

@@ -11,7 +11,7 @@ from CLAP.src import laion_clap
 folder_name = "step19_sec10_emo_gen"
 
 
-input_dir = f"/home/cyan/rl_final/samples/{folder_name}"
+input_dir = f"../samples/{folder_name}"
 input_files = glob(os.path.join(input_dir, '*.wav'))
 input_files.sort()
 
@@ -19,7 +19,7 @@ df = pd.DataFrame(columns = ["path", "sim_score"])
 
 # load model 
 model = laion_clap.CLAP_Module(enable_fusion=False, amodel= 'HTSAT-base', device='cpu')
-model.load_ckpt('/home/cyan/rl_final/ddpo-pytorch/CLAP/ckpt/music_audioset_epoch_15_esc_90.14.pt')
+model.load_ckpt('CLAP/ckpt/music_audioset_epoch_15_esc_90.14.pt')
 model.eval()
 
 for input_file in input_files:
@@ -43,5 +43,5 @@ for input_file in input_files:
 
     df.loc[len(df)] = [fname, similarity[0][0]]
 
-df.to_csv(f"/home/cyan/rl_final/samples/{folder_name}/clap_benchmark.csv", index=False)
+df.to_csv(f"samples/{folder_name}/clap_benchmark.csv", index=False)
 print(df["sim_score"].mean())

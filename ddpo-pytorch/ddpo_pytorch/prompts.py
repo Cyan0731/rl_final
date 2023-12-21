@@ -47,7 +47,8 @@ def simple_animals():
 def nouns_activities(nouns_file, activities_file):
     nouns = _load_lines(nouns_file)
     activities = _load_lines(activities_file)
-    return f"{(random.choice(nouns))} {random.choice(activities)}", {}
+    return f"a recording of a {random.choice(nouns)} {random.choice(activities)} solo,high quality", {}
+    # return f"a solo of {random.choice(activities)} very high quality very {random.choice(nouns)} melodious music, with no accompaniment", {}
 
 
 def counting(nouns_file, low, high):

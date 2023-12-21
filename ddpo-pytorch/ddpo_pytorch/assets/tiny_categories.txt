@@ -1,0 +1,4 @@
+happy, Q1
+angry, Q2
+sad, Q3
+tender, Q4

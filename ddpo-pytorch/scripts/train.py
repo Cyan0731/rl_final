@@ -11,7 +11,7 @@ from accelerate.utils import set_seed, ProjectConfiguration
 from accelerate.logging import get_logger
 from diffusers import StableDiffusionPipeline, DDIMScheduler, UNet2DConditionModel, AutoencoderKL
 from diffusers.loaders import AttnProcsLayers
-from diffusers.models.attention_processor import LoRAAttnProcessor
+from diffusers.models.attention_processor import LoRAAttnProcessor2_0
 import numpy as np
 import ddpo_pytorch.prompts
 import ddpo_pytorch.rewards
@@ -27,6 +27,7 @@ from PIL import Image
 from transformers import ClapTextModelWithProjection
 import diffusers
 from diffusers import AudioLDMPipeline
+from pipeline_audioldm2 import AudioLDM2Pipeline
 from transformers import ClapTextModelWithProjection, RobertaTokenizer, RobertaTokenizerFast, SpeechT5HifiGan
 
 # from diffusers.optimization import get_scheduler
@@ -101,41 +102,63 @@ def main(_):
     logger.info(f"\n{config}")
 
     # set seed (device_specific is very important to get different prompts on different devices)
-    set_seed(config.seed, device_specific=True)
+    # set_seed(config.seed, device_specific=True)
+    pretrained_model_name_or_path = "/home/cyan/rl_final/ddpo-pytorch/audioldm2-music"
+    # #change stable diffusion to audioldm
+    # tokenizer = RobertaTokenizerFast.from_pretrained(pretrained_model_name_or_path, subfolder="tokenizer")
+    # noise_scheduler = DDIMScheduler.from_pretrained(pretrained_model_name_or_path, subfolder="scheduler")
+    # text_encoder = ClapTextModelWithProjection.from_pretrained(
+    #     pretrained_model_name_or_path, subfolder="text_encoder", revision=False
+    # )
+    # vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path, subfolder="vae", revision=False)
+    # unet = UNet2DConditionModel.from_pretrained(
+    #     pretrained_model_name_or_path, subfolder="unet", revision=False
+    # )
+    # vocoder = SpeechT5HifiGan.from_pretrained(pretrained_model_name_or_path, subfolder="vocoder", revision=False
+    # )
 
-    # load scheduler, tokenizer and models.
-    pretrained_model_name_or_path = "/data/fundwotsai/RL_final/ddpo-pytorch/audioldm-m-full"
-    #change stable diffusion to audioldm
-    tokenizer = RobertaTokenizerFast.from_pretrained(pretrained_model_name_or_path, subfolder="tokenizer")
-    noise_scheduler = DDIMScheduler.from_pretrained(pretrained_model_name_or_path, subfolder="scheduler")
-    text_encoder = ClapTextModelWithProjection.from_pretrained(
-        pretrained_model_name_or_path, subfolder="text_encoder", revision=False
-    )
-    vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path, subfolder="vae", revision=False)
-    unet = UNet2DConditionModel.from_pretrained(
-        pretrained_model_name_or_path, subfolder="unet", revision=False
-    )
-    vocoder = SpeechT5HifiGan.from_pretrained(pretrained_model_name_or_path, subfolder="vocoder", revision=False
-    )
-
-    audioldmpipeline=AudioLDMPipeline(
-        text_encoder=text_encoder,
-        vae=vae,
-        unet=unet,
-        vocoder=vocoder,
-        scheduler=noise_scheduler,
-        tokenizer=tokenizer
-    ).to(accelerator.device)
+    # audioldmpipeline=AudioLDMPipeline(
+    #     text_encoder=text_encoder,
+    #     vae=vae,
+    #     unet=unet,
+    #     vocoder=vocoder,
+    #     scheduler=noise_scheduler,
+    #     tokenizer=tokenizer
+    # ).to(accelerator.device)
     # test if weight is successfully loaded
+    # waveform = audioldmpipeline("a High quality music with delighted guitar",negative_prompt="low quality", num_inference_steps=50, num_waveforms_per_prompt=1, audio_length_in_s=20).audios
+    # print(waveform)
+    # print(waveform.shape)
+    # # Convert the numpy ndarray to a PyTorch tensor
+    # waveform_tensor = torch.tensor(waveform)
+    # print(type(waveform_tensor))
+    # # Save the tensor as a WAV file
+    # import torchaudio
+    # torchaudio.save(f"a High quality music with delighted guitar.wav", waveform_tensor, 16000)
+    
+    #Try audioldm2 
+    audioldmpipeline= AudioLDM2Pipeline.from_pretrained(
+        pretrained_model_name_or_path,
+    ).to(accelerator.device)
     audioldmpipeline = audioldmpipeline.to("cuda")
     audioldmpipeline.vae.requires_grad_(False)
     audioldmpipeline.text_encoder.requires_grad_(False)
+    audioldmpipeline.text_encoder_2.requires_grad_(False)
+    audioldmpipeline.language_model.requires_grad_(False)
     audioldmpipeline.vocoder.requires_grad_(False)
     audioldmpipeline.unet.requires_grad_(not config.use_lora)
+    print(audioldmpipeline.unet.config)
     audioldmpipeline.text_encoder.text_projection.requires_grad_(not config.use_lora)
-    # disable safety checker
-    audioldmpipeline.safety_checker = None
-
+    # # disable safety checker
+    # audioldmpipeline.safety_checker = None
+    # # make the progress bar nicer
+    # audioldmpipeline.set_progress_bar_config(
+    #     position=1,
+    #     disable=not accelerator.is_local_main_process,
+    #     leave=False,
+    #     desc="Timestep",
+    #     dynamic_ncols=True,
+    # )
     # switch to DDIM scheduler
     # audioldmpipeline.scheduler = DDIMScheduler.from_config(audioldmpipeline.scheduler.config)
    
@@ -151,18 +174,19 @@ def main(_):
     # Move unet, vae and text_encoder to device and cast to inference_dtype
     audioldmpipeline.vae.to(accelerator.device, dtype=inference_dtype)
     audioldmpipeline.text_encoder.to(accelerator.device, dtype=inference_dtype)
+    audioldmpipeline.text_encoder_2.to(accelerator.device, dtype=inference_dtype)
+    audioldmpipeline.projection_model.to(accelerator.device, dtype=inference_dtype)
+    audioldmpipeline.language_model.to(accelerator.device, dtype=inference_dtype)
+    audioldmpipeline.text_encoder.text_projection.to(accelerator.device, dtype=inference_dtype)
     if config.use_lora:
         audioldmpipeline.unet.to(accelerator.device, dtype=inference_dtype)
     if config.use_lora:
         # Set correct lora layers
         lora_attn_procs = {}
+        i = 0
+        cross = [None,768,1024]
         for name in audioldmpipeline.unet.attn_processors.keys():
             # print(name)
-            if name.endswith("attn1.processor"):
-                cross_attention_dim = None
-            else:
-                cross_attention_dim = audioldmpipeline.unet.config.cross_attention_dim
-            
             if name.startswith("mid_block"):
                 hidden_size = audioldmpipeline.unet.config.block_out_channels[-1]
             elif name.startswith("up_blocks"):
@@ -174,9 +198,18 @@ def main(_):
                 block_id = int(name[len("down_blocks.")])
                 hidden_size = audioldmpipeline.unet.config.block_out_channels[block_id]
             # print("hidden_size",hidden_size)
+            if name.endswith("attn1.processor"):
+                cross_attention_dim = None
+            else:
+                # if "down_blocks" in name or "up_blocks" in name:
+                cross_attention_dim = cross[i%3]
+                i = i + 1
+            # print(hidden_size)
             # print("cross_attention_dim",cross_attention_dim)
-            lora_attn_procs[name] = LoRAAttnProcessor(
-                hidden_size=hidden_size, cross_attention_dim=hidden_size
+            lora_attn_procs[name] = LoRAAttnProcessor2_0(
+                hidden_size=hidden_size,
+                cross_attention_dim=cross_attention_dim,
+                rank = 8
             )
         audioldmpipeline.unet.set_attn_processor(lora_attn_procs)
 
@@ -354,14 +387,15 @@ def main(_):
             #         for _ in range(config.sample.batch_size)
             #     ]
             # )
-            prompts, prompt_metadata = zip(
+            prompt, prompt_metadata = zip(
                 *[
-                    nouns_activities("/data/fundwotsai/RL_final/ddpo-pytorch/ddpo_pytorch/assets/emotions.txt",
-                                     "/data/fundwotsai/RL_final/ddpo-pytorch/ddpo_pytorch/assets/instruments.txt")
+                    nouns_activities("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/assets/tiny_emos.txt",
+                                     "/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/assets/tiny_inst.txt")
                     for _ in range(config.sample.batch_size)
                 ]
             )
-            # print("prompts",prompts)
+            
+            # print(prompt[0])
             # print("prompts",prompts)
             # print("prompt_metadata",prompt_metadata)
             # encode prompts
@@ -376,18 +410,28 @@ def main(_):
             # sample_neg_prompt_embeds = sample_neg_prompt_embeds.squeeze(1)
             # train_neg_prompt_embeds = train_neg_prompt_embeds.squeeze(1)
             # sample
-            
             with autocast():
-                audio, latents, log_probs, prompt_embeds = pipeline_with_logprob(
+                audio, latents, log_probs, prompt_embeds, train_neg_prompt_embeds, attention_mask, generated_prompt_embeds = pipeline_with_logprob(
                     audioldmpipeline,
-                    prompt=prompts[0],
-                    negative_prompt="low quality",
+                    prompt=prompt[0],
+                    negative_prompt="Low quality, mutiple sound source",
                     num_inference_steps=config.sample.num_steps,
                     guidance_scale=config.sample.guidance_scale,
                     eta=config.sample.eta,
                     output_type="pt",
                 )
+            # print("prompt",prompt)
+            # print("prompt[0]",prompt[0])
             prompt_embeds, train_neg_prompt_embeds = prompt_embeds.chunk(2)
+            # prompt_embeds_size = prompt_embeds.size()
+            # padding = (0, 0, 0, 18-prompt_embeds_size[1])
+            # print(prompt_embeds_size[1])
+            # prompt_embeds = torch.nn.functional.pad(prompt_embeds, padding, "constant", 0)
+            # train_neg_prompt_embeds = torch.nn.functional.pad(train_neg_prompt_embeds, padding, "constant", 0)
+            # print("prompt_embeds",prompt_embeds.size())
+            # print("train_neg_prompt_embeds",train_neg_prompt_embeds.size())
+            # print("generated_prompt_embeds",generated_prompt_embeds.size())
+            # print("attention_mask",attention_mask.size())
             latents = torch.stack(
                 latents, dim=1
             )  # (batch_size, num_steps + 1, 4, 64, 64)
@@ -399,13 +443,15 @@ def main(_):
             # compute rewards asynchronously
             # print("latents",latents.size())
             # print("audio",audio.size())
-            # print("prompt[0] type",type(prompts[0]))
-            # print("prompt type",type(prompts))
-            prompts = [prompts[0]]
-            rewards = executor.submit(reward_fn, audio, prompts, prompt_metadata)
+            # print("prompt[0] type",type(prompt[0]))
+            prompts.append(prompt[0])
+            # print("audio",audio.shape)
+            # print("prompts",prompts)
+            rewards = executor.submit(reward_fn, audio, prompt, prompt_metadata)
+            
             # yield to to make sure reward computation starts
             time.sleep(0)
-
+            
             samples.append(
                 {
                     # "prompt_ids": prompt_ids,
@@ -421,7 +467,7 @@ def main(_):
                     "rewards": rewards,
                 }
             )
-
+    
         # wait for all rewards to be computed
         for sample in tqdm(
             samples,
@@ -431,14 +477,19 @@ def main(_):
         ):
             rewards, reward_metadata = sample["rewards"].result()
             # accelerator.print(reward_metadata)
+            # print("reward",rewards)
+            # print("reward.shape",rewards.shape)
+            # print("reward type",type(rewards))
+            # max_reward = np.max(rewards)
+            # print("max_reward", max_reward)
             sample["rewards"] = torch.as_tensor(rewards, device=accelerator.device)
-
         # collate samples into dict where each entry has shape (num_batches_per_epoch * sample.batch_size, ...)
+        # print(samples)
         samples = {k: torch.cat([s[k] for s in samples]) for k in samples[0].keys()}
 
         # gather rewards across processes
         rewards = accelerator.gather(samples["rewards"]).cpu().numpy()
-
+        # print("gathered reward", rewards)
         # log rewards and images
         accelerator.log(
             {
@@ -453,14 +504,16 @@ def main(_):
         # per-prompt mean/std tracking
         if config.per_prompt_stat_tracking:
             # gather the prompts across processes
-            prompt_ids = accelerator.gather(samples["prompt_ids"]).cpu().numpy()
-            prompts = audioldmpipeline.tokenizer.batch_decode(
-                prompt_ids, skip_special_tokens=True
-            )
+            # prompt_ids = accelerator.gather(samples["prompt_ids"]).cpu().numpy()
+            # prompts = audioldmpipeline.tokenizer.batch_decode(
+            #     prompt_ids, skip_special_tokens=True
+            # )
             advantages = stat_tracker.update(prompts, rewards)
+            # print("prompts",prompts)
+            # print("rewards",rewards)
         else:
-        advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
-
+            advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        # print("advantages", advantages.shape)
         # ungather advantages; we only need to keep the entries corresponding to the samples on this process
         samples["advantages"] = (
             torch.as_tensor(advantages)
@@ -515,9 +568,8 @@ def main(_):
                 list(enumerate(samples_batched)),
                 desc=f"Epoch {epoch}.{inner_epoch}: training",
                 position=0,
-                disable=not accelerator.is_local_main_process,):
-
-                # print(train_neg_prompt_embeds.shape, sample["prompt_embeds"].shape)
+                disable=not accelerator.is_local_main_process,
+            ):
                 if config.train.cfg:
                     # concat negative prompts to sample prompts to avoid two forward passes
                     embeds = torch.cat(
@@ -536,12 +588,17 @@ def main(_):
                     with accelerator.accumulate(unet):
                         with autocast():
                             if config.train.cfg:
+                                # print("attention_mask",attention_mask.size())
+                                # print("embeds",embeds.size())
+                                # print("generated_prompt_embeds",generated_prompt_embeds.size())
                                 noise_pred = unet(
                                     torch.cat([sample["latents"][:, j]] * 2),
                                     torch.cat([sample["timesteps"][:, j]] * 2),
-                                    class_labels = embeds,
-                                    encoder_hidden_states=None
-                                ).sample
+                                    encoder_hidden_states=generated_prompt_embeds,
+                                    encoder_hidden_states_1=embeds,
+                                    encoder_attention_mask_1=attention_mask,
+                                    return_dict=False,
+                                )[0]
                                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                                 noise_pred = (
                                     noise_pred_uncond

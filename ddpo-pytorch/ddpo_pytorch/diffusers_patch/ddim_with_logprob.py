@@ -41,7 +41,7 @@ def ddim_step_with_logprob(
     model_output: torch.FloatTensor,
     timestep: int,
     sample: torch.FloatTensor,
-    eta: float = 0.0,
+    eta: float = 1.0,
     use_clipped_model_output: bool = False,
     generator=None,
     prev_sample: Optional[torch.FloatTensor] = None,
@@ -186,6 +186,12 @@ def ddim_step_with_logprob(
         - torch.log(std_dev_t)
         - torch.log(torch.sqrt(2 * torch.as_tensor(math.pi)))
     )
+
+    # print("prev_sample.detach()",prev_sample.detach())
+    # print("prev_sample_mean",prev_sample_mean)
+    # print("std_dev_t",std_dev_t)
+    # print("log_prob",log_prob)
+    # print("log_prob",log_prob)
     # mean along all but batch dimension
     log_prob = log_prob.mean(dim=tuple(range(1, log_prob.ndim)))
 

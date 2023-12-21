@@ -9,13 +9,13 @@ import torch
 import torchaudio
 from omegaconf import DictConfig, OmegaConf
 import librosa
-from .audio_cls.src.model.net import ShortChunkCNN_Res
+from audio_cls.src.model.net import ShortChunkCNN_Res
 
 
-def predict(audio) -> str:
+def predict(audio):
     device = "cpu"
-    config_path = Path("/home/cyan/RL_final/ddpo-pytorch/ddpo_pytorch/emo_weight/ar_va/hparams.yaml")
-    checkpoint_path = Path("/home/cyan/RL_final/ddpo-pytorch/ddpo_pytorch/emo_weight/ar_va/best.ckpt")
+    config_path = Path("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/emo_weight/ar_va/hparams.yaml")
+    checkpoint_path = Path("/home/cyan/rl_final/ddpo-pytorch/ddpo_pytorch/emo_weight/ar_va/best.ckpt")
     config = OmegaConf.load(config_path)
     label_list = list(config.task.labels)
 
@@ -49,10 +49,10 @@ def predict(audio) -> str:
         prediction = model(audio_sample.to(device))
         prediction = prediction.mean(0,False)
     
-    # pred_label = label_list[prediction.squeeze(0).max(0)[1].detach().cpu().numpy()]
+    pred_label = label_list[prediction.squeeze(0).max(0)[1].detach().cpu().numpy()]
     pred_value = prediction.squeeze(0).detach().cpu().numpy()
 
-    return pred_value
+    return pred_label, pred_value
 
 if __name__ == "__main__":
     # test case

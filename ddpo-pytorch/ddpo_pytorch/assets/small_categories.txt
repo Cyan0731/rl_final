@@ -1,0 +1,16 @@
+happy, Q1
+joyful, Q1
+cheerful, Q1
+upbeat, Q1
+angry, Q2
+aggressive, Q2
+intense, Q2
+ferocious, Q2
+sad, Q3
+mournful, Q3
+somber, Q3
+sorrowful, Q3
+tender, Q4
+gentle, Q4
+soft, Q4
+soothing, Q4

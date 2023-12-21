@@ -1,0 +1,10 @@
+guitar
+piano
+violin
+flute
+trumpet
+drums
+saxophone
+cello
+ukulele
+acoustic-guitar

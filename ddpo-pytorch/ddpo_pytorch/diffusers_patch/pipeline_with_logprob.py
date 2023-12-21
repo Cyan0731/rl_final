@@ -34,7 +34,7 @@ def pipeline_with_logprob(
     self: AudioLDMPipeline,
     prompt: Union[str, List[str]] = None,
     height: Optional[int] = None,
-    audio_length_in_s = 5,
+    audio_length_in_s = 10, # change time
     vocoder_upsample_factor = None,
     width: Optional[int] = None,
     num_inference_steps: int = 50,
@@ -173,16 +173,29 @@ def pipeline_with_logprob(
         if cross_attention_kwargs is not None
         else None
     )
-
-    prompt_embeds = self._encode_prompt(
+    
+    prompt_embeds, attention_mask, generated_prompt_embeds = self.encode_prompt(
         prompt,
         device,
         num_waveforms_per_prompt,
         do_classifier_free_guidance ,
         negative_prompt,
-        prompt_embeds=prompt_embeds,
-        negative_prompt_embeds=negative_prompt_embeds,
     )
+    prompt_embeds, train_neg_prompt_embeds = prompt_embeds.chunk(2)
+    prompt_embeds_size = prompt_embeds.size()
+    padding = (0, 0, 0, 18-prompt_embeds_size[1])
+    padding_2 = (0, 18-prompt_embeds_size[1])
+    # print(prompt_embeds_size[1])
+    prompt_embeds = torch.nn.functional.pad(prompt_embeds, padding, "constant", 0)
+    train_neg_prompt_embeds = torch.nn.functional.pad(train_neg_prompt_embeds, padding, "constant", 0)
+    attention_mask = torch.nn.functional.pad(attention_mask, padding_2, "constant", 0)
+    # print("prompt_embeds",prompt_embeds.size())
+    # print("train_neg_prompt_embeds",train_neg_prompt_embeds.size())
+    # print("generated_prompt_embeds",generated_prompt_embeds.size())
+    # print("attention_mask",attention_mask.size())
+    prompt_embeds = torch.cat((prompt_embeds, train_neg_prompt_embeds), dim=0)
+    # print("prompt_embeds",prompt_embeds.size())
+
 
     # 4. Prepare timesteps
     self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -215,15 +228,18 @@ def pipeline_with_logprob(
                 torch.cat([latents] * 2) if do_classifier_free_guidance else latents
             )
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-
+            # print(latent_model_input.size())
             # predict the noise residual
+            # print("latent_model_input", latent_model_input.size())
             noise_pred = self.unet(
                 latent_model_input,
                 t,
-                encoder_hidden_states=None,
-                class_labels=prompt_embeds,
-                cross_attention_kwargs=cross_attention_kwargs,
-            ).sample
+                encoder_hidden_states=generated_prompt_embeds,
+                encoder_hidden_states_1=prompt_embeds,
+                encoder_attention_mask_1=attention_mask,
+                return_dict=False,
+            )[0]
+
 
             # perform guidance
             if do_classifier_free_guidance:
@@ -259,7 +275,8 @@ def pipeline_with_logprob(
                     callback(i, t, latents)
 
     # if not output_type == "latent":
-    mel = self.decode_latents(latents)
+    latents = 1 / self.vae.config.scaling_factor * latents
+    mel = self.vae.decode(latents).sample
     # mel, has_nsfw_concept = self.run_safety_checker(
     #     mel, device, prompt_embeds.dtype
     # )
@@ -270,6 +287,15 @@ def pipeline_with_logprob(
     # print(self.vocoder.config)
     audio = self.mel_spectrogram_to_waveform(mel)
     audio = audio[:, :original_waveform_length]
+    if num_waveforms_per_prompt > 1 and prompt is not None:
+            audio = self.score_waveforms(
+                text=prompt,
+                audio=audio,
+                num_waveforms_per_prompt=num_waveforms_per_prompt,
+                device=device,
+                dtype=prompt_embeds.dtype,
+            )
+            # print(audio.shape)
     # else:
     #     mel = latents
     #     has_nsfw_concept = None
@@ -288,128 +314,15 @@ def pipeline_with_logprob(
     # Offload last model to CPU
     if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
         self.final_offload_hook.offload()
+    # print("audio.shape",audio.shape)
+    # print("all_latents.shape",all_latents[0].shape)
+    # print("all_log_probs.shape",all_log_probs[0].shape)
+    # print("prompt_embeds.shape",prompt_embeds.shape)
+    # print("train_neg_prompt_embeds.shape",train_neg_prompt_embeds.size())
+    # print("attention_mask.shape",attention_mask.size())
+    # print("generated_prompt_embeds.",generated_prompt_embeds.shape)
 
-    return audio, all_latents, all_log_probs, prompt_embeds
+    return audio, all_latents, all_log_probs, prompt_embeds, train_neg_prompt_embeds, attention_mask, generated_prompt_embeds
     
 
-    #check original
-
-    # vocoder_upsample_factor = np.prod(self.vocoder.config.upsample_rates) / self.vocoder.config.sampling_rate
-
-    # if audio_length_in_s is None:
-    #     audio_length_in_s = self.unet.config.sample_size * self.vae_scale_factor * vocoder_upsample_factor
-
-    # height = int(audio_length_in_s / vocoder_upsample_factor)
-
-    # original_waveform_length = int(audio_length_in_s * self.vocoder.config.sampling_rate)
-    # if height % self.vae_scale_factor != 0:
-    #     height = int(np.ceil(height / self.vae_scale_factor)) * self.vae_scale_factor
-    #     print(
-    #         f"Audio length in seconds {audio_length_in_s} is increased to {height * vocoder_upsample_factor} "
-    #         f"so that it can be handled by the model. It will be cut to {audio_length_in_s} after the "
-    #         f"denoising process."
-    #     )
-
-    # # 1. Check inputs. Raise error if not correct
-    # self.check_inputs(
-    #     prompt,
-    #     audio_length_in_s,
-    #     vocoder_upsample_factor,
-    #     callback_steps,
-    #     negative_prompt,
-    #     prompt_embeds,
-    #     negative_prompt_embeds,
-    # )
-
-    # # 2. Define call parameters
-    # if prompt is not None and isinstance(prompt, str):
-    #     batch_size = 1
-    # elif prompt is not None and isinstance(prompt, list):
-    #     batch_size = len(prompt)
-    # else:
-    #     batch_size = prompt_embeds.shape[0]
-
-    # device = self._execution_device
-    # # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
-    # # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
-    # # corresponds to doing no classifier free guidance.
-    # do_classifier_free_guidance = guidance_scale > 1.0
-
-    # # 3. Encode input prompt
-    # prompt_embeds = self._encode_prompt(
-    #     prompt,
-    #     device,
-    #     num_waveforms_per_prompt,
-    #     do_classifier_free_guidance,
-    #     negative_prompt,
-    #     prompt_embeds=prompt_embeds,
-    #     negative_prompt_embeds=negative_prompt_embeds,
-    # )
-
-    # # 4. Prepare timesteps
-    # self.scheduler.set_timesteps(num_inference_steps, device=device)
-    # timesteps = self.scheduler.timesteps
-
-    # # 5. Prepare latent variables
-    # num_channels_latents = self.unet.config.in_channels
-    # latents = self.prepare_latents(
-    #     batch_size * num_waveforms_per_prompt,
-    #     num_channels_latents,
-    #     height,
-    #     prompt_embeds.dtype,
-    #     device,
-    #     generator,
-    #     latents,
-    # )
-
-    # # 6. Prepare extra step kwargs
-    # extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
-
-    # # 7. Denoising loop
-    # num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
-    # with self.progress_bar(total=num_inference_steps) as progress_bar:
-    #     for i, t in enumerate(timesteps):
-    #         # expand the latents if we are doing classifier free guidance
-    #         latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
-    #         latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-
-    #         # predict the noise residual
-    #         noise_pred = self.unet(
-    #             latent_model_input,
-    #             t,
-    #             encoder_hidden_states=None,
-    #             class_labels=prompt_embeds,
-    #             cross_attention_kwargs=cross_attention_kwargs,
-    #         ).sample
-
-    #         # perform guidance
-    #         if do_classifier_free_guidance:
-    #             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-    #             noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
-    #         # compute the previous noisy sample x_t -> x_t-1
-    #         latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
-
-    #         # call the callback, if provided
-    #         if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
-    #             progress_bar.update()
-    #             if callback is not None and i % callback_steps == 0:
-    #                 step_idx = i // getattr(self.scheduler, "order", 1)
-    #                 callback(step_idx, t, latents)
-
-    # # 8. Post-processing
-    # mel_spectrogram = self.decode_latents(latents)
-    # mel_spectrogram = mel_spectrogram.to(dtype=torch.float32, device='cuda') 
-    # audio = self.mel_spectrogram_to_waveform(mel_spectrogram)
-
-    # audio = audio[:, :original_waveform_length]
-    # audio = torch.tensor(audio)
-    # print(type(audio))
-    # # Save the tensor as a WAV file
-    # import torchaudio
-    # torchaudio.save(f"a High quality music with delighted guitar.wav", audio, 16000)
-    # if output_type == "np":
-    #     audio = audio.numpy()
-
-    # if not return_dict:
-    #     return (audio,)
+    

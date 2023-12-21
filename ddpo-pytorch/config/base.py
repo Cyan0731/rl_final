@@ -6,15 +6,17 @@ def get_config():
 
     ###### General ######
     # run name for wandb logging and checkpoint saving -- if not provided, will be auto-generated based on the datetime.
-    config.run_name = ""
+    # config.run_name = "4emo_piano_steps19_emopia"
+    config.run_name = "4emo_piano_steps19_clap"
     # random seed for reproducibility.
     # config.seed = 42
-    config.seed = random.randint(0, 100)
+    # config.seed = 777
+    config.seed = random.randint(0, 1000)
     # top-level logging directory for checkpoint saving.
     config.logdir = "logs"
     # number of epochs to train for. each epoch is one round of sampling from the model followed by training on those
     # samples.
-    config.num_epochs = 2000
+    config.num_epochs = 500
     # number of epochs between saving model checkpoints.
     config.save_freq = 20
     # number of checkpoints to keep before overwriting old ones.
@@ -26,7 +28,7 @@ def get_config():
     # resume training from a checkpoint. either an exact checkpoint directory (e.g. checkpoint_50), or a directory
     # containing checkpoints, in which case the latest one will be used. `config.use_lora` must be set to the same value
     # as the run that generated the saved checkpoint.
-    config.resume_from = ""
+    config.resume_from = "/home/cyan/rl_final/ddpo-pytorch/logs/4emo_piano_steps19_clap/checkpoints/checkpoint_7"
     # whether or not to use LoRA. LoRA reduces memory usage significantly by injecting small weight matrices into the
     # attention layers of the UNet. with LoRA, fp16, and a batch size of 1, finetuning Stable Diffusion should take
     # about 10GB of GPU memory. beware that if LoRA is disabled, training will take a lot of memory and saved checkpoint
@@ -43,10 +45,10 @@ def get_config():
     ###### Sampling ######
     config.sample = sample = ml_collections.ConfigDict()
     # number of sampler inference steps.
-    sample.num_steps = 5
+    sample.num_steps = 19
     # eta parameter for the DDIM sampler. this controls the amount of noise injected into the sampling process, with 0.0
     # being fully deterministic and 1.0 being equivalent to the DDPM sampler.
-    sample.eta = 0.2
+    sample.eta = 1
     # classifier-free guidance weight. 1.0 is no guidance.
     # sample.guidance_scale = 5.0
     sample.guidance_scale = 3.5
@@ -54,7 +56,7 @@ def get_config():
     sample.batch_size = 1
     # number of batches to sample per epoch. the total number of samples per epoch is `num_batches_per_epoch *
     # batch_size * num_gpus`.
-    sample.num_batches_per_epoch = 6
+    sample.num_batches_per_epoch = 32
 
     ###### Training ######
     config.train = train = ml_collections.ConfigDict()
@@ -74,9 +76,9 @@ def get_config():
     train.adam_epsilon = 1e-8
     # number of gradient accumulation steps. the effective batch size is `batch_size * num_gpus *
     # gradient_accumulation_steps`.
-    train.gradient_accumulation_steps = 6
+    train.gradient_accumulation_steps = 1
     # maximum gradient norm for gradient clipping.
-    train.max_grad_norm = 1.0
+    train.max_grad_norm = 1
     # number of inner epochs per outer epoch. each inner epoch is one iteration through the data collected during one
     # outer epoch's round of sampling.
     train.num_inner_epochs = 1
@@ -99,8 +101,8 @@ def get_config():
 
     ###### Reward Function ######
     # reward function to use. see `rewards.py` for available reward functions.
-    # config.reward_fn = "clap_score"
-    config.reward_fn = "emo_score"
+    config.reward_fn = "clap_score"
+    # config.reward_fn = "emo_score"
 
     ###### Per-Prompt Stat Tracking ######
     # when enabled, the model will track the mean and std of reward on a per-prompt basis and use that to compute

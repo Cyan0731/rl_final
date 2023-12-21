@@ -5,7 +5,7 @@ import os
 
 # model_path = '/home/cyan/rl_final/ddpo-pytorch/logs/4emo_piano_steps19_emopia/checkpoints/checkpoint_4'
 model_path = "/home/cyan/rl_final/ddpo-pytorch/audioldm2_ckpt/4emo_steps38_highest/checkpoint_14"
-output_dir = '/home/cyan/rl_final/emopia_samples/step38_sec10_emo_gen_highest/'
+output_dir = '/home/cyan/rl_final/samples/step38_sec10_emo_gen_highest/'
 num_inference_steps = 38
 audio_length_in_s = 5.
 

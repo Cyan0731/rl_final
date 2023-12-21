@@ -309,5 +309,5 @@ notebooks/
 audioldm2-music/
 audioldm-m-full/
 examples/
-audioldm2_ckpt/
-CLAP/ckpt
+audioldm2_ckpt/*
+CLAP/ckpt/*

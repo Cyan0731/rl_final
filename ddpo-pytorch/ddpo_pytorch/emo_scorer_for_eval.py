@@ -9,7 +9,7 @@ import torch
 import torchaudio
 from omegaconf import DictConfig, OmegaConf
 import librosa
-from .audio_cls.src.model.net import ShortChunkCNN_Res
+from audio_cls.src.model.net import ShortChunkCNN_Res
 
 
 def predict(audio):

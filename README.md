@@ -3,7 +3,7 @@
 
 ## Preparation
 
-after git clone this repo, cd to `ddpo_pytorch` directory and `pip install -e .` to install the repo.
+after git clone this repo, cd to `ddpo-pytorch` directory and `pip install -e .` to install the repo.
 
 download CLAP weight below and move CLAP weight into `ddpo-pytorch/CLAP/ckpt` directory
 https://huggingface.co/lukewys/laion_clap/blob/main/music_audioset_epoch_15_esc_90.14.pt
